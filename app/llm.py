@@ -14,6 +14,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from app import tls
 from app.config import Settings
 
 log = logging.getLogger(__name__)
@@ -82,7 +83,9 @@ class GeminiClient:
         from google.genai import types
 
         self._types = types
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+        contexto_ssl = tls.contexto()   # None fora de Windows/macOS (ou se desligado)
+        opcoes = types.HttpOptions(client_args={"verify": contexto_ssl}) if contexto_ssl else None
+        self._client = genai.Client(api_key=settings.gemini_api_key, http_options=opcoes)
         self.s = settings
         self.esperas_cota = (3, 8)       # o build do índice aumenta isso
         self.pausa_embedding = 0.1       # segundos entre embeddings individuais
@@ -141,15 +144,19 @@ class GeminiClient:
     # ---------------------------------------------------------------- geração
     def gerar(self, prompt: str, system: str, modelo: Optional[str] = None,
               temperatura: Optional[float] = None) -> str:
-        """Gera texto. Se a cota DIÁRIA do modelo acabar, tenta o `fallback_model` (cada modelo tem cota própria)."""
+        """Gera texto. Se o modelo principal falhar (cota, sobrecarga 503, rede), tenta o `fallback_model`.
+
+        Cada modelo tem cota e capacidade próprias, então uma falha passageira do principal
+        não precisa chegar ao aluno como erro.
+        """
         modelo = modelo or self.s.generation_model
         try:
             return self._gerar(prompt, system, modelo, temperatura)
-        except LLMQuotaDiaria:
+        except LLMError as e:
             reserva = self.s.fallback_model
             if not reserva or reserva == modelo:
                 raise
-            log.warning("Cota diária de %s esgotada; usando o modelo de reserva %s", modelo, reserva)
+            log.warning("Falha com %s (%s); tentando o modelo de reserva %s", modelo, str(e)[:90], reserva)
             return self._gerar(prompt, system, reserva, temperatura)
 
     def _gerar(self, prompt: str, system: str, modelo: str, temperatura: Optional[float]) -> str:

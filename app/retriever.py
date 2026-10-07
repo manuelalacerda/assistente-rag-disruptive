@@ -58,6 +58,18 @@ def consulta_fts(pergunta: str) -> str:
     return " OR ".join(f'"{t}"' for t in dict.fromkeys(uteis))
 
 
+def labs_citados(pergunta: str) -> list[str]:
+    """Números de lab citados na pergunta: 'lab 3' -> ['3'], 'Lab3.5' -> ['3.5'], 'labs 8 e 9' -> ['8']."""
+    achados = re.findall(r"\blab\s*0*(\d+(?:[.,_]\d+)?)", pergunta, flags=re.IGNORECASE)
+    return list(dict.fromkeys(a.replace(",", ".").replace("_", ".") for a in achados))
+
+
+def titulo_e_do_lab(titulo: str, numero: str) -> bool:
+    """'Lab03 - Serial' e 'Lab3 - Ferramentas' são o lab 3; 'Lab3.5 - ...' NÃO é."""
+    n = re.escape(numero)
+    return re.search(rf"\bLab\s*0*{n}(?![\d])(?![.,_]\d)", titulo, flags=re.IGNORECASE) is not None
+
+
 class Retriever:
     def __init__(self, db_path: str, embed_consulta: Optional[Callable[[str], np.ndarray]] = None):
         self.db_path = db_path
@@ -145,4 +157,32 @@ class Retriever:
             resultado.append(Hit(**{**base.__dict__, "score": scores[cid], **info[cid]}))
             if len(resultado) == k:
                 break
+        return self._garantir_paginas_do_lab(pergunta, resultado, k)
+
+    def _garantir_paginas_do_lab(self, pergunta: str, resultado: list[Hit], k: int) -> list[Hit]:
+        """O curso repete números de lab (ex.: "Lab 3" existe em IoT e em GenAI). Se a pergunta cita
+        "lab N", o início de TODA página com esse número entra no contexto, para o modelo poder
+        avisar da ambiguidade em vez de responder só sobre uma delas."""
+        numeros = labs_citados(pergunta)
+        if not numeros:
+            return resultado
+        primeiro_por_pagina: dict[str, Hit] = {}
+        for cid in sorted(self.chunks):                       # menor id = começo da página
+            h = self.chunks[cid]
+            if any(titulo_e_do_lab(h.titulo, n) for n in numeros):
+                primeiro_por_pagina.setdefault(h.url, h)
+        protegidas = set(primeiro_por_pagina)
+        presentes = {h.url for h in resultado}
+        for url, base in primeiro_por_pagina.items():
+            if url in presentes:
+                continue
+            novo = Hit(**{**base.__dict__, "score": 0.0})
+            if len(resultado) < k:
+                resultado.append(novo)
+            else:  # troca o pior resultado que não seja de uma das páginas do lab
+                idx = next((i for i in range(len(resultado) - 1, -1, -1) if resultado[i].url not in protegidas), None)
+                if idx is None:
+                    break
+                resultado[idx] = novo
+            presentes.add(url)
         return resultado

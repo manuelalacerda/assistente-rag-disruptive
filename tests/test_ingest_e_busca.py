@@ -214,3 +214,38 @@ def test_gera_perguntas_sinteticas_e_retoma_sem_repetir(tmp_path, repo_disciplin
     r = Retriever(caminho, fake_llm.embed_consulta)
     m = avaliar_sintetico(r, saida, k=6, candidatos=25)
     assert m["n"] == n1 and m["trecho_hit6"] == 1.0 and m["pagina_hit6"] == 1.0
+
+
+# ------------------------------------------------------------------ "lab N" existe em mais de uma página
+
+def test_labs_citados_e_titulos():
+    from app.retriever import labs_citados, titulo_e_do_lab
+    assert labs_citados("Do que trata o Lab 3?") == ["3"]
+    assert labs_citados("e o LAB03?") == ["3"] and labs_citados("lab 3.5 e lab 4") == ["3.5", "4"]
+    assert labs_citados("explique MQTT") == []
+    assert titulo_e_do_lab("Lab03 - Serial", "3") and titulo_e_do_lab("Lab3 - Ferramentas (notebook)", "3")
+    assert not titulo_e_do_lab("Lab3.5 - Do protótipo ao produto", "3")      # outro lab
+    assert not titulo_e_do_lab("Lab13 - Algo", "3") and not titulo_e_do_lab("Lab30 - Algo", "3")
+
+
+def test_pergunta_sobre_lab_traz_todas_as_paginas_com_aquele_numero(tmp_path, fake_llm):
+    from ingest.sources import Documento
+    longo = " ".join(["ferramentas funcoes schema pydantic saidas estruturadas lab"] * 30)
+    docs = [
+        Documento("a.md", "Lab3 - Ferramentas e Saídas Estruturadas", ["IA"], "https://x/genai/lab3/", "pagina",
+                  "\n\n".join(f"## Parte {i}\n\n{longo}" for i in range(6))),
+        Documento("b.md", "Lab03 - Serial", ["IoT"], "https://x/iot/lab3/", "pagina",
+                  "## Comunicação serial\n\nO Arduino envia dados ao computador pela porta USB usando o monitor."),
+        Documento("c.md", "Lab3.5 - Do protótipo ao produto", ["IA"], "https://x/genai/lab3_5/", "pagina",
+                  "## Produto\n\nTransforme o assistente em uma API com banco de dados e README."),
+    ]
+    caminho = str(tmp_path / "labs.db")
+    construir_indice(docs, caminho, fake_llm, "fake")
+    r = Retriever(caminho, fake_llm.embed_consulta)
+
+    urls = [h.url for h in r.buscar("Do que trata o Lab 3?", k=4, candidatos=25)]
+    assert "https://x/genai/lab3/" in urls and "https://x/iot/lab3/" in urls     # as DUAS páginas do lab 3
+    assert len(urls) == 4
+
+    sem_lab = [h.url for h in r.buscar("ferramentas funcoes schema pydantic", k=4, candidatos=25)]
+    assert "https://x/iot/lab3/" not in sem_lab        # sem citar "lab N", nada é forçado

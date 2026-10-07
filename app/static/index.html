@@ -39,10 +39,6 @@
 
   .vazio h2 { font-size: 1.6rem; line-height: 1.25; font-weight: 600; margin: 24px 0 8px; max-width: 18ch; }
   .vazio p { color: var(--suave); margin: 0 0 24px; max-width: 56ch; }
-  .exemplos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linha); }
-  .exemplos li { border-bottom: 1px solid var(--linha); }
-  .exemplos button { width: 100%; text-align: left; background: none; border: 0; padding: 12px 4px; cursor: pointer; }
-  .exemplos button:hover { color: var(--marca); background: var(--marca-fundo); }
 
   .msg { margin: 0 0 26px; }
   .msg.aluno { display: flex; justify-content: flex-end; }
@@ -116,12 +112,6 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 (() => {
-  const EXEMPLOS = [
-    "Quantos checkpoints existem por semestre e como são entregues?",
-    "Como funciona o RAG e por que o System Prompt não serve como base de conhecimento?",
-    "Qual broker e porta o ESP32 usa no exemplo de MQTT?",
-    "Como declaro uma função para o modelo chamar (function calling) no Gemini?",
-  ];
   const $conversa = document.getElementById("conversa");
   const $rolagem = document.getElementById("rolagem");
   const $campo = document.getElementById("pergunta");
@@ -137,12 +127,7 @@
     const caixa = el("section", "vazio");
     caixa.append(el("h2", "", "Pergunte sobre a disciplina"),
       el("p", "", "Respondo com base nas aulas e laboratórios publicados no site e cito de onde veio cada informação."));
-    const lista = el("ul", "exemplos");
-    EXEMPLOS.forEach((q) => {
-      const li = el("li"); const b = el("button", "", q); b.type = "button";
-      b.addEventListener("click", () => enviar(q)); li.append(b); lista.append(li);
-    });
-    caixa.append(lista); $conversa.append(caixa);
+    $conversa.append(caixa);
   }
 
   // Converte markdown em HTML seguro (DOMPurify) e transforma [n] em links para as fontes.

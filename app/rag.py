@@ -30,6 +30,14 @@ def eh_recusa(resposta: str) -> bool:
     return resposta.lstrip().startswith(_PREFIXOS_RECUSA)
 
 
+def normalizar_codigo_inline(texto: str) -> str:
+    """Corrige `1883`` ou ``1883`` (crases desiguais/duplas) para `1883`, sem mexer em blocos ```."""
+    partes = re.split(r"(```.*?```)", texto, flags=re.DOTALL)   # índices ímpares = blocos de código
+    for i in range(0, len(partes), 2):
+        partes[i] = re.sub(r"(?<!`)`{1,2}(?!`)([^`\n]+?)(?<!`)`{1,2}(?!`)", r"`\1`", partes[i])
+    return "".join(partes)
+
+
 def remover_citacoes(texto: str) -> str:
     """Numa recusa não mostramos fontes; então os marcadores [n] ficariam soltos e sem link."""
     return re.sub(r"[ \t]*(?:\[\d+(?:\s*,\s*\d+)*\])+", "", texto)
@@ -118,6 +126,7 @@ class RagService:
         resposta = self.llm.gerar(prompt_resposta(pergunta, hits, historico), SYSTEM_PROMPT)
         tempos["geracao"] = int((time.perf_counter() - t0) * 1000)
 
+        resposta = normalizar_codigo_inline(resposta)
         fontes: list[Fonte] = []
         if eh_recusa(resposta):
             resposta = remover_citacoes(resposta)

@@ -271,3 +271,85 @@ def test_avaliacao_para_limpo_quando_a_cota_diaria_acaba(monkeypatch):
     golden = [{"id": f"q{i}", "categoria": "x", "pergunta": "?", "recusa": True} for i in range(5)]
     r = avaliar_respostas(RagFalso(), golden, usar_juiz=False, pausa=0)
     assert r["total"] == 2 and r["interrompido"] and r["aprovadas"] == 2
+
+
+# ------------------------------------------------------------------ certificados do sistema (TLS)
+
+@pytest.mark.parametrize("valor, plataforma, esperado", [
+    ("auto", "win32", True), ("auto", "darwin", True), ("auto", "linux", False),   # Linux = servidor: não muda
+    ("1", "linux", True), ("0", "win32", False), ("nao", "win32", False),
+])
+def test_certificados_do_sistema_ligam_so_onde_faz_sentido(monkeypatch, valor, plataforma, esperado):
+    from app import tls
+    monkeypatch.setenv("USE_SYSTEM_CERTS", valor)
+    monkeypatch.setattr(tls.sys, "platform", plataforma)
+    monkeypatch.setattr(tls, "load_dotenv", lambda: None)
+    assert tls.ativo() is esperado
+
+
+def test_cliente_gemini_recebe_contexto_ssl_quando_ativo(monkeypatch):
+    pytest.importorskip("truststore")      # só roda se o pacote opcional estiver instalado
+    import ssl
+    from app import tls
+    from app.config import Settings
+    from app.llm import GeminiClient
+    from dataclasses import replace
+
+    monkeypatch.setenv("USE_SYSTEM_CERTS", "1")
+    monkeypatch.setattr(tls, "load_dotenv", lambda: None)
+    assert isinstance(tls.contexto(), ssl.SSLContext)      # truststore instalado no ambiente de teste
+    cliente = GeminiClient(replace(Settings(), gemini_api_key="chave-falsa"))   # constrói sem chamar a rede
+    assert cliente._client is not None
+
+
+# ------------------------------------------------------------------ acabamento da resposta
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("porta `1883`` do broker", "porta `1883` do broker"),
+    ("porta ``1883`` do broker", "porta `1883` do broker"),
+    ("porta `1883` do broker", "porta `1883` do broker"),                       # já correto: não muda
+    ("use `a` e ``b`` aqui", "use `a` e `b` aqui"),
+    ("antes\n```python\nx = `y``\n```\ndepois `z``", "antes\n```python\nx = `y``\n```\ndepois `z`"),   # bloco intacto
+])
+def test_normaliza_codigo_inline_sem_tocar_nos_blocos(entrada, esperado):
+    from app.rag import normalizar_codigo_inline
+    assert normalizar_codigo_inline(entrada) == esperado
+
+
+def test_resposta_final_chega_com_crases_corrigidas(rag, fake_llm):
+    fake_llm.resposta = "A porta é `1883`` [1]."
+    assert "`1883`" in rag.responder("porta do MQTT?").resposta and "``" not in rag.responder("porta do MQTT?").resposta
+
+
+def test_instrucao_de_continuidade_so_aparece_com_historico(rag, fake_llm):
+    rag.responder("O que é MQTT?")
+    assert "CONTINUA a conversa anterior" not in fake_llm.chamadas[-1]["prompt"]
+    rag.responder("e a porta?", [{"role": "user", "content": "MQTT"}, {"role": "assistant", "content": "ok"}])
+    assert "CONTINUA a conversa anterior" in fake_llm.chamadas[-1]["prompt"]
+
+
+def test_modelo_de_reserva_tambem_assume_em_falha_passageira_do_principal(monkeypatch):
+    """Como na demo: o principal devolve 503 (sobrecarga) e o aluno não deve ver erro."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from app import llm
+    from app.config import Settings
+
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    usados = []
+
+    class ClienteFalso:
+        class models:
+            @staticmethod
+            def generate_content(model, contents, config=None):
+                usados.append(model)
+                if model == "principal":
+                    raise RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand")
+                return SimpleNamespace(text="resposta da reserva")
+
+    g = llm.GeminiClient.__new__(llm.GeminiClient)
+    g.s = replace(Settings(), generation_model="principal", fallback_model="reserva")
+    g._types = SimpleNamespace(GenerateContentConfig=lambda **k: None)
+    g._client, g.esperas_cota = ClienteFalso(), (3, 8)
+    assert g.gerar("oi", "sys") == "resposta da reserva"
+    assert usados.count("principal") == 3 and usados[-1] == "reserva"   # 3 tentativas no principal, depois a reserva
