@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+data/chat.db*
+eval/resultados.json
+*.tmp
+data/build_cache.json*

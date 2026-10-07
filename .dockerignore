@@ -1,0 +1,7 @@
+.git
+.env
+.venv
+tests
+eval
+__pycache__
+data/chat.db*

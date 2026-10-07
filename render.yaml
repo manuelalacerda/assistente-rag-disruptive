@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: assistente-disruptive
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false        # você cola o valor no painel do Render (nunca no GitHub)

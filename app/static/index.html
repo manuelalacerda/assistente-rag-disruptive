@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistente da disciplina · Disruptive Architectures</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234527A0'/%3E%3Cpath d='M8 10h16v9H15l-5 4v-4H8z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #f5f4f9; --superficie: #ffffff; --tinta: #1a1530; --suave: #5d577a;
+    --linha: #dcd8ea; --marca: #4527a0; --marca-fundo: #ece7f8; --codigo: #efedf6; --erro: #b3261e;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --papel: #14111f; --superficie: #1d1930; --tinta: #ece9f6; --suave: #a49fbd;
+      --linha: #342e4d; --marca: #b9a3f0; --marca-fundo: #2b2347; --codigo: #262040; --erro: #f2b8b5;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--papel); color: var(--tinta); font: 16px/1.6 var(--sans); display: flex; flex-direction: column; }
+  button, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+  header { border-bottom: 1px solid var(--linha); background: var(--superficie); }
+  .topo { max-width: 760px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .topo h1 { font-size: 1rem; font-weight: 600; margin: 0; line-height: 1.3; }
+  .topo small { display: block; font-weight: 400; color: var(--suave); font-size: .8rem; }
+  .btn-texto { background: none; border: 1px solid var(--linha); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: .875rem; }
+  .btn-texto:hover { border-color: var(--marca); color: var(--marca); }
+
+  main { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+  #conversa { max-width: 760px; margin: 0 auto; padding: 28px 20px 12px; }
+
+  .vazio h2 { font-size: 1.6rem; line-height: 1.25; font-weight: 600; margin: 24px 0 8px; max-width: 18ch; }
+  .vazio p { color: var(--suave); margin: 0 0 24px; max-width: 56ch; }
+  .exemplos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linha); }
+  .exemplos li { border-bottom: 1px solid var(--linha); }
+  .exemplos button { width: 100%; text-align: left; background: none; border: 0; padding: 12px 4px; cursor: pointer; }
+  .exemplos button:hover { color: var(--marca); background: var(--marca-fundo); }
+
+  .msg { margin: 0 0 26px; }
+  .msg.aluno { display: flex; justify-content: flex-end; }
+  .msg.aluno .texto { background: var(--marca-fundo); border-radius: 14px 14px 4px 14px; padding: 9px 14px; max-width: 85%; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.bot .texto { max-width: 68ch; overflow-wrap: anywhere; }
+  .msg.bot .texto > :first-child { margin-top: 0; }
+  .msg.bot .texto > :last-child { margin-bottom: 0; }
+  .texto p { margin: 0 0 .8em; } .texto ul, .texto ol { margin: 0 0 .8em; padding-left: 1.4em; } .texto li { margin: .2em 0; }
+  .texto a { color: var(--marca); }
+  .texto code { font: .86em var(--mono); background: var(--codigo); padding: .12em .35em; border-radius: 4px; }
+  .texto pre { background: var(--codigo); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 0 0 .9em; }
+  .texto pre code { background: none; padding: 0; font-size: .84rem; line-height: 1.5; }
+  .texto table { border-collapse: collapse; margin: 0 0 .9em; font-size: .92rem; display: block; overflow-x: auto; }
+  .texto th, .texto td { border: 1px solid var(--linha); padding: 5px 10px; text-align: left; }
+  .cite { font: 500 .72rem/1 var(--mono); color: var(--marca); background: var(--marca-fundo); border-radius: 4px; padding: 2px 5px; margin: 0 1px; text-decoration: none; vertical-align: .15em; }
+  .cite:hover { background: var(--marca); color: var(--superficie); }
+
+  .fontes { margin: 14px 0 0; padding: 0; list-style: none; max-width: 68ch; border-left: 2px solid var(--marca); }
+  .fontes li { padding: 4px 0 4px 12px; font-size: .86rem; }
+  .fontes a { color: var(--tinta); text-decoration: none; }
+  .fontes a:hover .nome { text-decoration: underline; }
+  .fontes .n { font: 500 .72rem var(--mono); color: var(--marca); margin-right: 6px; }
+  .fontes .nome { font-weight: 500; }
+  .fontes .caminho { display: block; font: .74rem/1.4 var(--mono); color: var(--suave); overflow-wrap: anywhere; }
+
+  .acoes { margin-top: 10px; display: flex; gap: 8px; align-items: center; font-size: .82rem; color: var(--suave); }
+  .acoes button { background: none; border: 1px solid var(--linha); border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: .82rem; }
+  .acoes button:hover { border-color: var(--marca); color: var(--marca); }
+
+  .digitando { color: var(--suave); font-size: .92rem; }
+  .digitando::after { content: "…"; display: inline-block; animation: pisca 1.2s steps(3, end) infinite; width: 1em; overflow: hidden; vertical-align: bottom; }
+  @keyframes pisca { 0% { width: 0; } 100% { width: 1em; } }
+  .erro { color: var(--erro); }
+
+  footer { border-top: 1px solid var(--linha); background: var(--superficie); }
+  .caixa { max-width: 760px; margin: 0 auto; padding: 12px 20px 14px; }
+  .linha { display: flex; gap: 10px; align-items: flex-end; border: 1px solid var(--linha); border-radius: 12px; padding: 8px 8px 8px 14px; background: var(--papel); }
+  .linha:focus-within { border-color: var(--marca); }
+  textarea { flex: 1; border: 0; background: none; resize: none; max-height: 140px; padding: 4px 0; outline: none; line-height: 1.5; }
+  #enviar { background: var(--marca); color: var(--superficie); border: 0; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-weight: 500; }
+  #enviar:disabled { opacity: .45; cursor: wait; }
+  .aviso { margin: 8px 0 0; font-size: .75rem; color: var(--suave); }
+
+  @media (max-width: 520px) { .vazio h2 { font-size: 1.35rem; } .msg.aluno .texto { max-width: 92%; } }
+  @media (prefers-reduced-motion: reduce) { main { scroll-behavior: auto; } .digitando::after { animation: none; width: 1em; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="topo">
+    <h1>Assistente da disciplina<small>Disruptive Architectures: IA e IoT</small></h1>
+    <button class="btn-texto" id="nova" type="button">Nova conversa</button>
+  </div>
+</header>
+
+<main id="rolagem">
+  <div id="conversa" aria-live="polite"></div>
+</main>
+
+<footer>
+  <div class="caixa">
+    <div class="linha">
+      <textarea id="pergunta" rows="1" maxlength="500" placeholder="Pergunte sobre aulas, labs, checkpoints…" aria-label="Sua pergunta"></textarea>
+      <button id="enviar" type="button">Enviar</button>
+    </div>
+    <p class="aviso">As respostas vêm apenas do material publicado no site. Confira a fonte citada antes de decidir algo importante.</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script>
+(() => {
+  const EXEMPLOS = [
+    "Quantos checkpoints existem por semestre e como são entregues?",
+    "Como funciona o RAG e por que o System Prompt não serve como base de conhecimento?",
+    "Qual broker e porta o ESP32 usa no exemplo de MQTT?",
+    "Como declaro uma função para o modelo chamar (function calling) no Gemini?",
+  ];
+  const $conversa = document.getElementById("conversa");
+  const $rolagem = document.getElementById("rolagem");
+  const $campo = document.getElementById("pergunta");
+  const $enviar = document.getElementById("enviar");
+  let sessionId = sessionStorage.getItem("session_id");
+  let ocupado = false;
+
+  const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto) e.textContent = texto; return e; };
+  const rolarParaOFim = () => { $rolagem.scrollTop = $rolagem.scrollHeight; };
+
+  function telaInicial() {
+    $conversa.replaceChildren();
+    const caixa = el("section", "vazio");
+    caixa.append(el("h2", "", "Pergunte sobre a disciplina"),
+      el("p", "", "Respondo com base nas aulas e laboratórios publicados no site e cito de onde veio cada informação."));
+    const lista = el("ul", "exemplos");
+    EXEMPLOS.forEach((q) => {
+      const li = el("li"); const b = el("button", "", q); b.type = "button";
+      b.addEventListener("click", () => enviar(q)); li.append(b); lista.append(li);
+    });
+    caixa.append(lista); $conversa.append(caixa);
+  }
+
+  // Converte markdown em HTML seguro (DOMPurify) e transforma [n] em links para as fontes.
+  function renderizarMarkdown(destino, markdown, fontes) {
+    if (!window.marked || !window.DOMPurify) { destino.style.whiteSpace = "pre-wrap"; destino.textContent = markdown; return; }
+    destino.innerHTML = DOMPurify.sanitize(marked.parse(markdown), { USE_PROFILES: { html: true } });
+    destino.querySelectorAll("a").forEach((a) => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
+    const porNumero = new Map(fontes.map((f) => [f.n, f]));
+    const walker = document.createTreeWalker(destino, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => n.parentElement.closest("code, pre, a") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
+    const nos = []; while (walker.nextNode()) nos.push(walker.currentNode);
+    nos.forEach((no) => {
+      if (!/\[\d+\]/.test(no.nodeValue)) return;
+      const frag = document.createDocumentFragment();
+      no.nodeValue.split(/(\[\d+\])/).forEach((parte) => {
+        const m = parte.match(/^\[(\d+)\]$/); const f = m && porNumero.get(Number(m[1]));
+        if (f) { const a = el("a", "cite", m[1]); a.href = f.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.title = f.titulo; frag.append(a); }
+        else if (parte && !m) frag.append(parte);   // [n] sem fonte correspondente é descartado
+      });
+      no.replaceWith(frag);
+    });
+  }
+
+  function blocoFontes(fontes) {
+    const ul = el("ul", "fontes"); ul.setAttribute("aria-label", "Fontes");
+    fontes.forEach((f) => {
+      const li = el("li"); const a = el("a"); a.href = f.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      const caminho = [f.trilha, f.titulo, f.secao].filter(Boolean).join(" › ");
+      a.append(el("span", "n", `[${f.n}]`), el("span", "nome", f.titulo), el("span", "caminho", caminho));
+      li.append(a); ul.append(li);
+    });
+    return ul;
+  }
+
+  function blocoFeedback(messageId) {
+    const div = el("div", "acoes"); div.append(el("span", "", "Esta resposta ajudou?"));
+    const enviarNota = async (nota) => {
+      try {
+        const r = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message_id: messageId, nota }) });
+        if (!r.ok) throw new Error();
+        div.replaceChildren(el("span", "", "Obrigado pelo retorno."));
+      } catch { div.replaceChildren(el("span", "erro", "Não foi possível registrar o retorno.")); }
+    };
+    [["util", "Sim"], ["nao_util", "Não"]].forEach(([nota, rotulo]) => {
+      const b = el("button", "", rotulo); b.type = "button"; b.addEventListener("click", () => enviarNota(nota)); div.append(b);
+    });
+    return div;
+  }
+
+  function mensagemAluno(texto) { const m = el("div", "msg aluno"); m.append(el("div", "texto", texto)); $conversa.append(m); }
+
+  async function enviar(texto) {
+    texto = (texto ?? $campo.value).trim();
+    if (!texto || ocupado) return;
+    ocupado = true; $enviar.disabled = true; $campo.value = ""; $campo.style.height = "auto";
+    if ($conversa.querySelector(".vazio")) $conversa.replaceChildren();
+    mensagemAluno(texto);
+
+    const bot = el("div", "msg bot"); const corpo = el("div", "texto");
+    corpo.append(el("span", "digitando", "Consultando o material"));
+    bot.append(corpo); $conversa.append(bot); rolarParaOFim();
+
+    try {
+      const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pergunta: texto, session_id: sessionId }) });
+      const dados = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof dados.detail === "string" ? dados.detail : "Não consegui responder agora. Tente novamente.");
+      sessionId = dados.session_id; sessionStorage.setItem("session_id", sessionId);
+      corpo.replaceChildren(); renderizarMarkdown(corpo, dados.resposta, dados.fontes);
+      if (dados.fontes.length) bot.append(blocoFontes(dados.fontes));
+      bot.append(blocoFeedback(dados.message_id));
+    } catch (e) {
+      corpo.replaceChildren(el("span", "erro", e.message || "Não consegui falar com o servidor."));
+    } finally {
+      ocupado = false; $enviar.disabled = false; $campo.focus(); rolarParaOFim();
+    }
+  }
+
+  $enviar.addEventListener("click", () => enviar());
+  $campo.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } });
+  $campo.addEventListener("input", () => { $campo.style.height = "auto"; $campo.style.height = Math.min($campo.scrollHeight, 140) + "px"; });
+  document.getElementById("nova").addEventListener("click", () => { sessionStorage.removeItem("session_id"); sessionId = null; telaInicial(); $campo.focus(); });
+
+  telaInicial();
+})();
+</script>
+</body>
+</html>

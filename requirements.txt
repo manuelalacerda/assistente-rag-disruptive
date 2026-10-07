@@ -1,0 +1,7 @@
+# Dependências de EXECUÇÃO (o que o servidor precisa)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+google-genai>=2.3.0
+numpy>=1.26
+python-dotenv>=1.0
+pydantic>=2.6
