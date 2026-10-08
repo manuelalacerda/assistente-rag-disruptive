@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -34,6 +35,9 @@ isso isto esse essa esses essas este esta estes estas aquele aquela lá aqui já
 só pode posso podem faz fazer fazem preciso quero gostaria explique explica diga fale
 quanto quantos quanta quantas usa usar usado existe existem gero gera dá dar vai vão
 """.split())
+
+
+_STOPWORDS_SEM_ACENTO = {unicodedata.normalize("NFKD", w).encode("ascii", "ignore").decode("ascii") for w in _STOPWORDS}
 
 
 @dataclass
@@ -56,6 +60,37 @@ def consulta_fts(pergunta: str) -> str:
     tokens = re.findall(r"\w+", pergunta.lower())
     uteis = [t for t in tokens if t not in _STOPWORDS and (len(t) > 1 or t.isdigit())]
     return " OR ".join(f'"{t}"' for t in dict.fromkeys(uteis))
+
+
+def _sem_acento(texto: str) -> str:
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _palavras_de_assunto(texto: str) -> set[str]:
+    """Palavras que dizem DO QUE se trata (sem acento, sem 'lab', números e palavras comuns)."""
+    tokens = re.findall(r"\w+", _sem_acento(texto))
+    return {t for t in tokens if t not in _STOPWORDS_SEM_ACENTO and t not in ("lab", "labs") and not t.isdigit()}
+
+
+def filtrar_por_assunto(pergunta: str, paginas: dict) -> dict:
+    """Se a pergunta traz o assunto ("lab 9 MQTT"), fica só a página cujo título/menu o cita.
+
+    `paginas`: {url: Hit}. Só filtra quando o assunto distingue as páginas (algumas casam, outras não).
+    """
+    if len(paginas) < 2:
+        return paginas
+    assunto = _palavras_de_assunto(pergunta)
+    casadas = {}
+    for url, h in paginas.items():
+        titulo_menu = re.sub(r"\bLab\s*0*\d+(?:[.,_]\d+)?", "", f"{h.titulo} {h.trilha}", flags=re.IGNORECASE)
+        if assunto & _palavras_de_assunto(titulo_menu):
+            casadas[url] = h
+    return casadas if 0 < len(casadas) < len(paginas) else paginas
+
+
+def eh_codigo(texto: str, limite: float = 0.5) -> bool:
+    codigo = sum(len(b.split()) for b in re.findall(r"```.*?```", texto, flags=re.DOTALL))
+    return codigo / max(len(texto.split()), 1) >= limite
 
 
 def labs_citados(pergunta: str) -> list[str]:
@@ -157,15 +192,53 @@ class Retriever:
             resultado.append(Hit(**{**base.__dict__, "score": scores[cid], **info[cid]}))
             if len(resultado) == k:
                 break
-        return self._garantir_paginas_do_lab(pergunta, resultado, k)
+        resultado = self._garantir_paginas_do_lab(pergunta, resultado)
+        return self._incluir_vizinhos_de_codigo(resultado)
 
-    def _garantir_paginas_do_lab(self, pergunta: str, resultado: list[Hit], k: int) -> list[Hit]:
+    def _garantir_paginas_do_lab(self, pergunta: str, resultado: list[Hit]) -> list[Hit]:
         """O curso repete números de lab (ex.: "Lab 3" existe em IoT e em GenAI). Se a pergunta cita
-        "lab N", o início de TODA página com esse número entra no contexto, para o modelo poder
-        avisar da ambiguidade em vez de responder só sobre uma delas."""
+        "lab N" sem dizer o assunto, o início de TODA página com esse número entra no contexto, para o
+        modelo poder avisar da ambiguidade. Apenas ACRESCENTA: nunca tira um resultado que a busca achou."""
         numeros = labs_citados(pergunta)
         if not numeros:
             return resultado
+        primeiro_por_pagina: dict[str, Hit] = {}
+        for cid in sorted(self.chunks):                       # menor id = começo da página
+            h = self.chunks[cid]
+            if any(titulo_e_do_lab(h.titulo, n) for n in numeros):
+                primeiro_por_pagina.setdefault(h.url, h)
+        presentes = {h.url for h in resultado}
+        for url, base in filtrar_por_assunto(pergunta, primeiro_por_pagina).items():
+            if url not in presentes:
+                resultado.append(Hit(**{**base.__dict__, "score": 0.0}))
+                presentes.add(url)
+        return resultado
+
+    def _incluir_vizinhos_de_codigo(self, resultado: list[Hit], topo: int = 3, maximo: int = 3) -> list[Hit]:
+        """Código longo é dividido em vários trechos (ex.: a constante `MQTT_PORT = 1883` num e o uso dela
+        no seguinte). Se um dos melhores resultados é código, trazemos os vizinhos imediatos da mesma
+        seção: sem eles o modelo vê o uso da variável mas não o valor."""
+        presentes = {h.id for h in resultado}
+        saida: list[Hit] = []
+        adicionados = 0
+
+        def vizinho(h: Hit, delta: int):
+            v = self.chunks.get(h.id + delta)
+            if v and v.id not in presentes and v.url == h.url and v.secao == h.secao:   # seção vazia = abertura da página
+                presentes.add(v.id)
+                return Hit(**{**v.__dict__, "score": 0.0})
+            return None
+
+        for pos, h in enumerate(resultado):
+            antes = depois = None
+            if pos < topo and adicionados < maximo and eh_codigo(h.texto):
+                antes = vizinho(h, -1)
+                adicionados += antes is not None
+                if adicionados < maximo:
+                    depois = vizinho(h, +1)
+                    adicionados += depois is not None
+            saida.extend(x for x in (antes, h, depois) if x is not None)
+        return saida
         primeiro_por_pagina: dict[str, Hit] = {}
         for cid in sorted(self.chunks):                       # menor id = começo da página
             h = self.chunks[cid]

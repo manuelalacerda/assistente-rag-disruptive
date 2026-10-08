@@ -249,3 +249,64 @@ def test_pergunta_sobre_lab_traz_todas_as_paginas_com_aquele_numero(tmp_path, fa
 
     sem_lab = [h.url for h in r.buscar("ferramentas funcoes schema pydantic", k=4, candidatos=25)]
     assert "https://x/iot/lab3/" not in sem_lab        # sem citar "lab N", nada é forçado
+
+
+# ------------------------------------------------------------------ vizinhos de código e assunto
+
+def _doc_codigo_dividido():
+    """Código longo que vira 2 trechos: o valor (1883) fica no 1º; o uso da variável, no 2º."""
+    parte1 = "\n".join(f"const int CONFIG_{i} = {i};  // parametro numero {i} da placa" for i in range(25))
+    parte1 += "\nconst int PORTA_BROKER = 1883;\n" + "\n".join(f"const int EXTRA_{i} = {i};" for i in range(25))
+    parte2 = "\n".join(f"int calculo_{i}(int x) {{ return x + {i}; }}  // funcao auxiliar {i}" for i in range(25))
+    parte2 += "\nclient.setServer(BROKER, PORTA_BROKER);\n"
+    return "## Código-base\n\n```cpp\n" + parte1 + "\n" + parte2 + "```"
+
+
+def test_codigo_dividido_traz_o_trecho_vizinho_com_o_valor(tmp_path, fake_llm):
+    from ingest.chunker import chunkar
+    from ingest.sources import Documento
+    texto = _doc_codigo_dividido()
+    assert len(chunkar(texto)) >= 2                        # confirma o cenário: o código foi dividido
+    caminho = str(tmp_path / "cod.db")
+    construir_indice([Documento("m.md", "Lab09 - MQTT", ["IoT"], "https://x/mqtt/", "pagina", texto)], caminho, fake_llm, "fake")
+    r = Retriever(caminho)                                  # só palavras
+
+    hits = r.buscar("setServer", k=1)                       # a busca acha SÓ o trecho do uso da variável...
+    assert any("1883" in h.texto for h in hits)             # ...e o vizinho com o valor vem junto
+    assert len(hits) <= 1 + 3                               # e o aumento do contexto é limitado
+
+
+def test_vizinho_nao_vem_de_outra_secao_nem_para_texto_comum(tmp_path, fake_llm):
+    from ingest.sources import Documento
+    prosa = " ".join(["explicacao detalhada sobre mqtt e topicos"] * 40)
+    docs = [Documento("m.md", "Lab09 - MQTT", ["IoT"], "https://x/mqtt/", "pagina",
+                      f"## Teoria\n\n{prosa}\n\n## Prática\n\n{prosa} praticaunica")]
+    caminho = str(tmp_path / "prosa.db")
+    construir_indice(docs, caminho, fake_llm, "fake")
+    assert len(Retriever(caminho).buscar("praticaunica", k=1)) == 1       # prosa: sem expansão
+
+
+def test_assunto_desambigua_o_lab_repetido():
+    from app.retriever import Hit, filtrar_por_assunto
+    mqtt = Hit(1, "Lab09 - MQTT", "1º Semestre - IoT > ESP32", "", "u1", "pagina", "t")
+    nodered = Hit(2, "Lab09 - Fluxos e Dashboards", "1º Semestre - IoT > Node-RED", "", "u2", "pagina", "t")
+    pags = {"u1": mqtt, "u2": nodered}
+    assert list(filtrar_por_assunto("qual a porta do MQTT no lab 9?", pags)) == ["u1"]
+    assert list(filtrar_por_assunto("lab 9 do node-red", pags)) == ["u2"]
+    assert list(filtrar_por_assunto("Do que trata o Lab 9?", pags)) == ["u1", "u2"]        # sem assunto: continua ambíguo
+    assert list(filtrar_por_assunto("lab 9 na parte de IoT", pags)) == ["u1", "u2"]         # 'IoT' está nas duas: não distingue
+
+
+def test_garantia_de_labs_nunca_expulsa_resultados_da_busca(tmp_path, fake_llm):
+    from ingest.sources import Documento
+    docs = [Documento("a.md", "Lab3 - Ferramentas", ["IA"], "https://x/ia/lab3/", "pagina",
+                      "\n\n".join(f"## P{i}\n\n" + " ".join(["funcoes schema pydantic"] * 60) for i in range(4))),
+            Documento("b.md", "Lab03 - Serial", ["IoT"], "https://x/iot/lab3/", "pagina",
+                      "## Serial\n\nO Arduino envia dados ao computador pelo monitor serial.")]
+    caminho = str(tmp_path / "g.db")
+    construir_indice(docs, caminho, fake_llm, "fake")
+    r = Retriever(caminho)
+    sem_lab = {h.id for h in r.buscar("funcoes schema pydantic", k=3)}
+    com_lab = {h.id for h in r.buscar("funcoes schema pydantic lab 3", k=3)}
+    assert sem_lab <= com_lab                               # tudo que a busca achou continua lá
+    assert any(h.url == "https://x/iot/lab3/" for h in r.buscar("funcoes schema pydantic lab 3", k=3))

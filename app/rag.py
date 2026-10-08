@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.prompts import SYSTEM_PROMPT, SYSTEM_REESCRITA, prompt_reescrita, prompt_resposta
-from app.retriever import Hit, Retriever
+from app.retriever import Hit, Retriever, filtrar_por_assunto, labs_citados, titulo_e_do_lab
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +28,32 @@ _PREFIXOS_RECUSA = ("Não encontrei", "Só respondo")   # mesmas frases definida
 
 def eh_recusa(resposta: str) -> bool:
     return resposta.lstrip().startswith(_PREFIXOS_RECUSA)
+
+
+def aviso_de_labs_repetidos(pergunta: str, hits: list[Hit]) -> str:
+    """O curso repete números de lab (ex.: "Lab 3" é Serial em IoT e Ferramentas em GenAI).
+
+    Quando a pergunta cita "Lab N" e o contexto traz MAIS DE UMA página com esse número, o
+    sistema avisa o modelo explicitamente. Deixar isso só na regra geral do prompt não bastou:
+    o modelo escolhia uma das páginas e respondia como se a outra não existisse.
+    """
+    numeros = labs_citados(pergunta)
+    if not numeros:
+        return ""
+    por_pagina: dict[str, tuple[int, Hit]] = {}
+    for n_hit, h in enumerate(hits, start=1):
+        if any(titulo_e_do_lab(h.titulo, n) for n in numeros):
+            por_pagina.setdefault(h.url, (n_hit, h))     # notebook e página do mesmo lab contam como uma só
+    por_pagina = {u: v for u, v in por_pagina.items()
+                  if u in filtrar_por_assunto(pergunta, {u2: v2[1] for u2, v2 in por_pagina.items()})}
+    if len(por_pagina) < 2:
+        return ""
+    itens = "; ".join(f"[{n}] {h.titulo.replace(' (notebook)', '')} ({h.trilha})" for n, h in por_pagina.values())
+    return (
+        f"ATENÇÃO: o aluno citou \"Lab {', '.join(numeros)}\", que existe em {len(por_pagina)} páginas diferentes "
+        f"do site: {itens}. Se a pergunta não deixar claro de qual se trata (pelo assunto ou tecnologia citados), "
+        "apresente brevemente cada uma, citando a fonte de cada, e ofereça detalhar a que ele quiser."
+    )
 
 
 def normalizar_codigo_inline(texto: str) -> str:
@@ -123,7 +149,8 @@ class RagService:
             return Resultado(NAO_ENCONTREI, [], consulta, hits, tempos, modelo="")
 
         t0 = time.perf_counter()
-        resposta = self.llm.gerar(prompt_resposta(pergunta, hits, historico), SYSTEM_PROMPT)
+        aviso = aviso_de_labs_repetidos(pergunta, hits)
+        resposta = self.llm.gerar(prompt_resposta(pergunta, hits, historico, aviso), SYSTEM_PROMPT)
         tempos["geracao"] = int((time.perf_counter() - t0) * 1000)
 
         resposta = normalizar_codigo_inline(resposta)

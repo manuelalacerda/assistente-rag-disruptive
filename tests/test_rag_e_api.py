@@ -353,3 +353,60 @@ def test_modelo_de_reserva_tambem_assume_em_falha_passageira_do_principal(monkey
     g._client, g.esperas_cota = ClienteFalso(), (3, 8)
     assert g.gerar("oi", "sys") == "resposta da reserva"
     assert usados.count("principal") == 3 and usados[-1] == "reserva"   # 3 tentativas no principal, depois a reserva
+
+
+# ------------------------------------------------------------------ aviso de "Lab N" repetido
+
+@pytest.fixture
+def rag_labs(settings, fake_llm):
+    from ingest.sources import Documento
+    docs = [
+        Documento("a.md", "Lab3 - Ferramentas e Saídas Estruturadas", ["2º Semestre - IA"], "https://x/genai/lab3/", "pagina",
+                  "## Ferramentas\n\nO assistente chama funcoes python e valida saidas estruturadas com pydantic no lab."),
+        Documento("a.ipynb", "Lab3 - Ferramentas e Saídas Estruturadas (notebook)", ["2º Semestre - IA"], "https://x/genai/lab3/", "notebook",
+                  "## Código\n\nO código declara funcoes e valida o json de saida com pydantic no laboratorio."),
+        Documento("b.md", "Lab03 - Serial", ["1º Semestre - IoT"], "https://x/iot/lab3/", "pagina",
+                  "## Comunicação serial\n\nO Arduino envia dados ao computador pela porta USB usando o monitor serial."),
+        Documento("c.md", "Lab3.5 - Do protótipo ao produto", ["2º Semestre - IA"], "https://x/genai/lab3_5/", "pagina",
+                  "## Produto\n\nTransforme o assistente em uma API com banco de dados e README."),
+    ]
+    construir_indice(docs, settings.index_db_path, fake_llm, "fake")
+    return RagService(Retriever(settings.index_db_path, fake_llm.embed_consulta), fake_llm, settings)
+
+
+def test_lab_repetido_avisa_o_modelo_e_lista_as_duas_paginas(rag_labs, fake_llm):
+    rag_labs.responder("Do que trata o Lab 3?")
+    prompt = fake_llm.chamadas[-1]["prompt"]
+    assert "ATENÇÃO" in prompt and "2 páginas diferentes" in prompt
+    assert "Lab03 - Serial" in prompt and "Lab3 - Ferramentas e Saídas Estruturadas" in prompt
+    assert "(notebook)" not in prompt.split("ATENÇÃO")[1].split("Pergunta do aluno")[0]   # notebook não conta como página extra
+
+
+def test_sem_ambiguidade_nao_ha_aviso(rag_labs, fake_llm):
+    for pergunta in ["Do que trata o Lab 3.5?",            # outro lab (não é o 3)
+                     "como funciona a comunicação serial?",  # não cita "lab N"
+                     "Do que trata o Lab 7?"]:               # número que não existe
+        rag_labs.responder(pergunta)
+        assert "ATENÇÃO" not in fake_llm.chamadas[-1]["prompt"], pergunta
+
+
+def test_aviso_de_ambiguidade_vale_tambem_em_conversa_com_historico(rag_labs, fake_llm):
+    hist = [{"role": "user", "content": "oi"}, {"role": "assistant", "content": "olá"}]
+    rag_labs.responder("e o lab 3?", hist)
+    prompt = fake_llm.chamadas[-1]["prompt"]
+    assert "ATENÇÃO" in prompt and "CONTINUA a conversa anterior" not in prompt   # o aviso tem prioridade
+
+
+def test_assunto_na_pergunta_dispensa_o_aviso_de_ambiguidade(settings, fake_llm):
+    from ingest.sources import Documento
+    docs = [Documento("a.md", "Lab09 - MQTT", ["1º Semestre - IoT", "ESP32"], "https://x/mqtt/", "pagina",
+                      "## Código\n\nO broker usa a porta 1883 na conexao mqtt do esp32."),
+            Documento("b.md", "Lab09 - Fluxos e Dashboards", ["1º Semestre - IoT", "Node-RED"], "https://x/nodered/", "pagina",
+                      "## Fluxos\n\nCrie fluxos e dashboards no node red para visualizar dados.")]
+    construir_indice(docs, settings.index_db_path, fake_llm, "fake")
+    rag = RagService(Retriever(settings.index_db_path, fake_llm.embed_consulta), fake_llm, settings)
+
+    rag.responder("qual a porta do MQTT no lab 9?")
+    assert "ATENÇÃO" not in fake_llm.chamadas[-1]["prompt"]          # o assunto (MQTT) já diz qual é
+    rag.responder("Do que trata o lab 9?")
+    assert "ATENÇÃO" in fake_llm.chamadas[-1]["prompt"]              # sem assunto: ambíguo

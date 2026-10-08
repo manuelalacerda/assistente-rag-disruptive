@@ -79,7 +79,7 @@ def avaliar_busca(retriever: Retriever, golden: list[dict], k: int, candidatos: 
     n = len(itens)
     hit = lambda m: sum(1 for p in posicoes if p is not None and p <= m) / n
     mrr = sum(1 / p for p in posicoes if p) / n
-    print(f"\nBUSCA ({n} perguntas, k={k}, vetores={'sim' if retriever.tem_vetores else 'não'})")
+    print(f"\nBUSCA ({n} perguntas, k={k}, vetores={'sim' if (retriever.tem_vetores and retriever.embed_consulta) else 'não'})")
     print(f"  hit@1 = {hit(1):.0%}   hit@3 = {hit(3):.0%}   hit@{k} = {hit(k):.0%}   MRR = {mrr:.3f}")
     fato = achou_fato / com_fato if com_fato else 0.0
     print(f"  fato@{k} = {fato:.0%}  (o trecho com a informação exata chegou ao prompt; {com_fato} perguntas)")

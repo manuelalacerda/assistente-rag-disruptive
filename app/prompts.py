@@ -17,7 +17,9 @@ checkpoints, avaliações e agenda.
 
 REGRAS
 1. Responda SOMENTE com base nos trechos dentro de <contexto>. Não complete lacunas com \
-conhecimento próprio — principalmente datas, notas, prazos, regras de avaliação e links.
+conhecimento próprio — principalmente datas, notas, prazos, regras de avaliação e links. \
+Não acrescente adjetivos, números ou detalhes que os trechos não afirmam, mesmo que pareçam óbvios \
+(\"não exige chave\" não significa \"gratuita\"; diga só o que está escrito).
 2. Se os trechos não bastarem para responder, comece a resposta com "Não encontrei isso no material \
 da disciplina." e, se fizer sentido, aponte a página ou lab mais próximo. Nunca invente.
 3. Cite as fontes com o número do trecho entre colchetes, logo após a informação: [1], [2][3]. \
@@ -92,17 +94,18 @@ def prompt_reescrita(historico: list[dict], pergunta: str) -> str:
     )
 
 
-def prompt_resposta(pergunta: str, hits: list[Hit], historico: list[dict]) -> str:
+def prompt_resposta(pergunta: str, hits: list[Hit], historico: list[dict], aviso: str = "") -> str:
     conversa = f"<conversa_anterior>\n{formatar_historico(historico)}\n</conversa_anterior>\n\n" if historico else ""
     continuidade = (
         "Esta pergunta CONTINUA a conversa anterior: responda sobre o mesmo assunto dela e não "
         "acrescente outros assuntos do contexto, a menos que o aluno peça.\n"
-        if historico else ""
+        if historico and not aviso else ""   # o aviso de ambiguidade tem prioridade sobre a "continuidade"
     )
+    aviso = f"{aviso}\n" if aviso else ""
     return (
         f"Hoje é {data_de_hoje()}.\n\n"
         f"<contexto>\n{montar_contexto(hits)}\n</contexto>\n\n"
         f"{conversa}"
-        f"{continuidade}"
+        f"{continuidade}{aviso}"
         f"Pergunta do aluno: {pergunta}"
     )
