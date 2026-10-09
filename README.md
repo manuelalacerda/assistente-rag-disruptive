@@ -72,6 +72,8 @@ GitHub da disciplina                          Navegador ──► FastAPI (/api/
                                           chat.db (SQLite): mensagens, fontes usadas, feedback
 ```
 
+---
+
 ## 👨‍💻 Como testar
 
 ### Opção A - Aplicação no ar
@@ -119,7 +121,7 @@ python -m eval.run_eval --respostas --juiz   # sistema inteiro + nota de fidelid
 
 ---
 
-## Deploy (Render)
+## 📦 Deploy (Render)
 
 1. Suba o projeto no GitHub **com `data/index.db` commitado** e sem o `.env`.
 2. No Render: New → Blueprint → escolha o repositório (usa `render.yaml`).
@@ -142,6 +144,8 @@ O plano gratuito "dorme" após inatividade: abra o site 1 min antes de apresenta
 | Prompt restritivo + citações [n] | Reduz alucinação e permite conferir a fonte. |
 | SQLite | Zero infraestrutura; índice (somente leitura) separado do log de conversas. |
 | Rate limit | Protege a cota da sua chave numa API pública. |
+
+---
 
 ## 🚫 Limitações conhecidas
 
