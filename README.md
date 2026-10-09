@@ -1,9 +1,64 @@
-# Assistente RAG da disciplina Disruptive Architectures
+# 🤖 Assistente RAG - Disruptive Architectures IoT, IoB e Generative AI
+ 
+Chat com IA que responde perguntas sobre o site da disciplina **usando só o conteúdo publicado** (aulas, labs, notebooks, checkpoints e agenda) e **cita a página de origem** de cada resposta.
+ 
+🔗 **Deploy:** `https://assistente-rag-disruptive.onrender.com/`  
+📦 **Repositório:** `https://github.com/manuelalacerda/assistente-rag-disruptive`
+ 
+---
 
-Chat que responde perguntas sobre o site da disciplina **usando só o conteúdo publicado** (aulas, labs, notebooks,
-checkpoints, agenda) e **cita a página de origem** de cada resposta.
+## Sobre o projeto
+ 
+Projeto da disciplina **Disruptive Architectures IoT, IoB e Generative AI**, um **sistema completo: assistente virtual de IA que usa **RAG** (*Retrieval-Augmented Generation*) sobre o site da matéria, com atenção especial à **qualidade das respostas**.
+  
+**O que o assistente faz?**
+ 
+- Responde somente com base no conteúdo da disciplina e cita a fonte de cada informação (`[1]`, `[2]`...), com link para a página.
+- Recusa o que não está no material (*"Não encontrei isso no material da disciplina."*) e o que não tem relação com a disciplina (*"Só respondo sobre o conteúdo da disciplina."*).
+- Entende perguntas de continuação usando o histórico da conversa.
+- Avisa quando um termo é repetido. Exemplo: "Lab 3" existe em IoT e em GenAI, então o assistente apresenta as duas possibilidades.
+- Coleta feedback do usuário (👍 ajudou / 👎 não ajudou) para melhorar o sistema com dados reais.
 
-## Arquitetura
+---
+
+## Tecnologias
+
+* Python
+* FastAPI
+* Gemini API (geração e embeddings)
+* SQLite
+* HTML/JS (front-end)
+* Docker
+* Render
+ 
+---
+ 
+## 👥 Integrantes
+
+<table>
+  <tr>
+    <td width="130">
+      <img src="https://github.com/manuelalacerda.png" width="120" style="border-radius: 50%;"/>
+    </td>
+    <td>
+      <b>Manuela de Lacerda Soares</b><br/>
+      <b>RM:</b> 564887 &nbsp;&nbsp;|&nbsp;&nbsp;<b>Turma:</b> 2TDSPG - FIAP <br/>
+    </td>
+  </tr>
+  <tr>
+    <td width="130">
+      <img src="https://github.com/sSofia-s.png" width="120" style="border-radius: 50%;"/>
+    </td>
+    <td>
+      <b>Sofia Siqueira Fontes</b><br/>
+      <b>RM:</b> 563829 &nbsp;&nbsp;|&nbsp;&nbsp;<b>Turma:</b> 2TDSPG - FIAP <br/>
+    </td>
+  </tr>
+</table>
+ 
+---
+
+## 🛠️ Arquitetura
 
 ```
 INGESTÃO (offline, você roda)                 SERVIDOR (online)
