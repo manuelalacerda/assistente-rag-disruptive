@@ -146,11 +146,3 @@ O plano gratuito "dorme" após inatividade: abra o site 1 min antes de apresenta
 | Rate limit | Protege a cota da sua chave numa API pública. |
 
 ---
-
-## 🚫 Limitações conhecidas
-
-- No plano gratuito do Render o disco é efêmero: `chat.db` é perdido a cada deploy/reinício (evolução: Postgres).
-- Sem streaming de resposta.
-- Não verifiquei as chamadas ao Gemini ao vivo no desenvolvimento: valide com sua chave.
-
----
