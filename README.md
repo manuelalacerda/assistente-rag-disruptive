@@ -21,7 +21,7 @@ Projeto da disciplina **Disruptive Architectures IoT, IoB e Generative AI**, um 
 
 ---
 
-## Tecnologias
+## 🌐 Tecnologias
 
 * Python
 * FastAPI
@@ -72,33 +72,65 @@ GitHub da disciplina                          Navegador ──► FastAPI (/api/
                                           chat.db (SQLite): mensagens, fontes usadas, feedback
 ```
 
-## Como rodar
+## 👨‍💻 Como testar
+
+### Opção A - Aplicação no ar
+1. Abra `https://assistente-rag-disruptive.onrender.com/` e faça as perguntas que desejar.
+2. Clique em 👍/👎 numa resposta e confira `https://assistente-rag-disruptive.onrender.com/api/stats`.
+
+### Também é possível testar a API diretamente:
+Pelo terminal:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-cp .env.example .env            # coloque sua GEMINI_API_KEY
-python -m ingest.build_index    # baixa o material e gera data/index.db
-uvicorn app.main:app --reload   # abra http://localhost:8000
+curl -X POST https://assistente-rag-disruptive.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"pergunta": "Quantos checkpoints existem por semestre?"}'
 ```
 
-## Testes e qualidade
+
+### Opção B - Rodando localmente
+Pré-requisitos: Python 3.12+ e uma chave gratuita do Gemini em <https://aistudio.google.com/apikey>.
+Clone o repositório e execute os comandos:
+
+```bash
+git clone https://github.com/manuelalacerda/assistente-rag-disruptive.git
+cd assistente-rag-disruptive
+ 
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements-dev.txt
+ 
+copy .env.example .env
+# edite o .env e preencha sua GEMINI_API_KEY
+ 
+python -m ingest.build_index       # baixa o material e gera data/index.db
+uvicorn app.main:app --reload      # abra http://localhost:8000
+```
+
+---
+   
+## 🧪 Testes e qualidade
 
 ```bash
 python -m pytest -q                          # testes automatizados (sem internet, sem chave)
 python -m eval.run_eval                      # qualidade da BUSCA: hit@k e MRR
-python -m eval.run_eval --respostas --juiz   # sistema inteiro + nota de fidelidade
+python -m eval.run_eval --respostas --juiz   # sistema inteiro + nota de fidelidade e (precisa da chave)
 ```
+
+---
 
 ## Deploy (Render)
 
-1. Suba o projeto no GitHub **com `data/index.db` commitado** (e sem `.env`).
-2. Render → New → Blueprint → escolha o repositório (usa `render.yaml`).
-3. No painel, defina `GEMINI_API_KEY`. Teste `https://SEU-APP.onrender.com/health`.
+1. Suba o projeto no GitHub **com `data/index.db` commitado** e sem o `.env`.
+2. No Render: New → Blueprint → escolha o repositório (usa `render.yaml`).
+3. No painel, defina `GEMINI_API_KEY`.
+4. Teste `https://SEU-APP.onrender.com/health`.
 
 O plano gratuito "dorme" após inatividade: abra o site 1 min antes de apresentar.
 
-## Decisões técnicas
+---
+
+## ⚖️ Decisões técnicas
 
 | Decisão | Por quê |
 |---|---|
@@ -111,8 +143,10 @@ O plano gratuito "dorme" após inatividade: abra o site 1 min antes de apresenta
 | SQLite | Zero infraestrutura; índice (somente leitura) separado do log de conversas. |
 | Rate limit | Protege a cota da sua chave numa API pública. |
 
-## Limitações conhecidas
+## 🚫 Limitações conhecidas
 
 - No plano gratuito do Render o disco é efêmero: `chat.db` é perdido a cada deploy/reinício (evolução: Postgres).
 - Sem streaming de resposta.
 - Não verifiquei as chamadas ao Gemini ao vivo no desenvolvimento: valide com sua chave.
+
+---
